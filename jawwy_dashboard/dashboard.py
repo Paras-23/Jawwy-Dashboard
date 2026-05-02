@@ -219,68 +219,241 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 · TRAFFIC & VOLUME
 # ═══════════════════════════════════════════════════════════════════════════════
-with tab1:
-    st.markdown('<div class="section-header">Events Per Minute (by t field)</div>', unsafe_allow_html=True)
+# with tab1:
+#     st.markdown('<div class="section-header">Events Per Minute (by t field)</div>', unsafe_allow_html=True)
 
-    if "minute_bucket" in df.columns:
+#     if "minute_bucket" in df.columns:
+#         per_min = (
+#             df.groupby("minute_bucket").size().reset_index(name="count")
+#             .sort_values("minute_bucket")
+#         )
+#         fig = px.area(
+#             per_min, x="minute_bucket", y="count",
+#             title="Events ingested per minute",
+#             color_discrete_sequence=["#4f8ef7"],
+#             template="plotly_dark",
+#         )
+#         fig.update_layout(
+#             paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
+#             xaxis_title="Time", yaxis_title="Event Count",
+#             height=340,
+#         )
+#         st.plotly_chart(fig, use_container_width=True)
+
+#         # Peak minute
+#         peak = per_min.loc[per_min["count"].idxmax()]
+#         st.info(f"🔥 **Peak minute:** `{peak['minute_bucket']}` with **{int(peak['count']):,}** events")
+
+#     st.markdown('<div class="section-header">Events Per Hour</div>', unsafe_allow_html=True)
+#     if "hour_bucket" in df.columns:
+#         per_hr = df.groupby("hour_bucket").size().reset_index(name="count").sort_values("hour_bucket")
+#         fig2 = px.bar(
+#             per_hr, x="hour_bucket", y="count",
+#             color="count", color_continuous_scale="Blues",
+#             template="plotly_dark",
+#         )
+#         fig2.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117", height=300,
+#                            xaxis_title="Hour", yaxis_title="Events")
+#         st.plotly_chart(fig2, use_container_width=True)
+
+#     st.markdown('<div class="section-header">Event Type Distribution (ev field)</div>', unsafe_allow_html=True)
+#     if "ev" in df.columns:
+#         ev_counts = df["ev"].value_counts().reset_index()
+#         ev_counts.columns = ["event_type", "count"]
+#         c1, c2 = st.columns(2)
+#         with c1:
+#             fig3 = px.pie(ev_counts, names="event_type", values="count",
+#                           hole=0.45, template="plotly_dark",
+#                           color_discrete_sequence=px.colors.sequential.Blues_r)
+#             fig3.update_layout(paper_bgcolor="#0f1117", height=300)
+#             st.plotly_chart(fig3, use_container_width=True)
+#         with c2:
+#             fig4 = px.bar(ev_counts, x="event_type", y="count",
+#                           color="count", color_continuous_scale="Blues",
+#                           template="plotly_dark")
+#             fig4.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117", height=300)
+#             st.plotly_chart(fig4, use_container_width=True)
+
+#     st.markdown('<div class="section-header">Daily Trend</div>', unsafe_allow_html=True)
+#     if "date_only" in df.columns:
+#         daily = df.groupby("date_only").size().reset_index(name="count")
+#         fig5 = px.line(daily, x="date_only", y="count", markers=True,
+#                        color_discrete_sequence=["#4f8ef7"], template="plotly_dark")
+#         fig5.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
+#                            xaxis_title="Date", yaxis_title="Events", height=300)
+#         st.plotly_chart(fig5, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 1 · TRAFFIC & VOLUME (ENHANCED - IST + INSIGHTS)
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab1:
+
+    # ── Convert to IST safely ───────────────────────────────────────────────
+    import pytz
+
+    if "t" in df.columns:
+        # Step 1: Parse everything directly with UTC
+        df["t_parsed"] = pd.to_datetime(df["t"], errors="coerce", utc=True)
+
+        # Step 2: Convert to IST safely (vectorized)
+        df["t_ist"] = df["t_parsed"].dt.tz_convert("Asia/Kolkata")
+
+        # Step 3: Derived fields
+        df["date_only"] = df["t_ist"].dt.date
+        df["hour"] = df["t_ist"].dt.hour
+        df["minute_bucket"] = df["t_ist"].dt.floor("min")
+        df["hour_bucket"] = df["t_ist"].dt.floor("h")
+
+    # ── Date selector ──────────────────────────────────────────────────────
+    st.markdown('<div class="section-header">📅 Select Date</div>', unsafe_allow_html=True)
+
+    if "date_only" in df.columns:
+        selected_date = st.selectbox(
+            "Choose Date",
+            sorted(df["date_only"].dropna().unique(), reverse=True)
+        )
+
+        df_filtered = df[df["date_only"] == selected_date]
+    else:
+        df_filtered = df.copy()
+
+    # ── Events Per Minute ───────────────────────────────────────────────────
+    st.markdown('<div class="section-header">Events Per Minute (IST)</div>', unsafe_allow_html=True)
+
+    if "minute_bucket" in df_filtered.columns and not df_filtered.empty:
         per_min = (
-            df.groupby("minute_bucket").size().reset_index(name="count")
+            df_filtered.groupby("minute_bucket").size()
+            .reset_index(name="count")
             .sort_values("minute_bucket")
         )
+
         fig = px.area(
-            per_min, x="minute_bucket", y="count",
-            title="Events ingested per minute",
-            color_discrete_sequence=["#4f8ef7"],
+            per_min,
+            x="minute_bucket",
+            y="count",
             template="plotly_dark",
+            color_discrete_sequence=["#4f8ef7"]
         )
+
         fig.update_layout(
-            paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
-            xaxis_title="Time", yaxis_title="Event Count",
-            height=340,
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#0f1117",
+            xaxis_title="Time (IST)",
+            yaxis_title="Events",
+            height=340
         )
+
         st.plotly_chart(fig, use_container_width=True)
 
-        # Peak minute
-        peak = per_min.loc[per_min["count"].idxmax()]
-        st.info(f"🔥 **Peak minute:** `{peak['minute_bucket']}` with **{int(peak['count']):,}** events")
+        # 🔥 Peak minute
+        peak_min = per_min.loc[per_min["count"].idxmax()]
+        st.success(f"🔥 Peak minute: `{peak_min['minute_bucket']}` → **{int(peak_min['count'])} events**")
 
+        # ⚡ Spikes detection
+        threshold = per_min["count"].mean() * 2
+        spikes = per_min[per_min["count"] > threshold]
+
+        if not spikes.empty:
+            st.warning("⚡ Traffic Spikes Detected")
+            st.dataframe(spikes, use_container_width=True)
+
+    # ── Events Per Hour ─────────────────────────────────────────────────────
     st.markdown('<div class="section-header">Events Per Hour</div>', unsafe_allow_html=True)
-    if "hour_bucket" in df.columns:
-        per_hr = df.groupby("hour_bucket").size().reset_index(name="count").sort_values("hour_bucket")
-        fig2 = px.bar(
-            per_hr, x="hour_bucket", y="count",
-            color="count", color_continuous_scale="Blues",
-            template="plotly_dark",
+
+    if "hour" in df_filtered.columns and not df_filtered.empty:
+        per_hr = (
+            df_filtered.groupby("hour").size()
+            .reset_index(name="count")
+            .sort_values("hour")
         )
-        fig2.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117", height=300,
-                           xaxis_title="Hour", yaxis_title="Events")
+
+        fig2 = px.bar(
+            per_hr,
+            x="hour",
+            y="count",
+            color="count",
+            color_continuous_scale="Blues",
+            template="plotly_dark"
+        )
+
+        fig2.update_layout(
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#0f1117",
+            height=300,
+            xaxis_title="Hour (IST)",
+            yaxis_title="Events"
+        )
+
         st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown('<div class="section-header">Event Type Distribution (ev field)</div>', unsafe_allow_html=True)
-    if "ev" in df.columns:
-        ev_counts = df["ev"].value_counts().reset_index()
+        # 🚀 Peak hour
+        peak_hr = per_hr.loc[per_hr["count"].idxmax()]
+        st.success(f"🚀 Peak hour: **{int(peak_hr['hour'])}:00** → **{int(peak_hr['count'])} events**")
+
+    # ── Event Distribution ──────────────────────────────────────────────────
+    st.markdown('<div class="section-header">Event Type Distribution</div>', unsafe_allow_html=True)
+
+    if "ev" in df_filtered.columns:
+        ev_counts = df_filtered["ev"].value_counts().reset_index()
         ev_counts.columns = ["event_type", "count"]
+
         c1, c2 = st.columns(2)
+
         with c1:
-            fig3 = px.pie(ev_counts, names="event_type", values="count",
-                          hole=0.45, template="plotly_dark",
-                          color_discrete_sequence=px.colors.sequential.Blues_r)
+            fig3 = px.pie(
+                ev_counts,
+                names="event_type",
+                values="count",
+                hole=0.45,
+                template="plotly_dark",
+                color_discrete_sequence=px.colors.sequential.Blues_r
+            )
             fig3.update_layout(paper_bgcolor="#0f1117", height=300)
             st.plotly_chart(fig3, use_container_width=True)
+
         with c2:
-            fig4 = px.bar(ev_counts, x="event_type", y="count",
-                          color="count", color_continuous_scale="Blues",
-                          template="plotly_dark")
-            fig4.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117", height=300)
+            fig4 = px.bar(
+                ev_counts,
+                x="event_type",
+                y="count",
+                color="count",
+                color_continuous_scale="Blues",
+                template="plotly_dark"
+            )
+            fig4.update_layout(
+                paper_bgcolor="#0f1117",
+                plot_bgcolor="#0f1117",
+                height=300
+            )
             st.plotly_chart(fig4, use_container_width=True)
 
-    st.markdown('<div class="section-header">Daily Trend</div>', unsafe_allow_html=True)
-    if "date_only" in df.columns:
-        daily = df.groupby("date_only").size().reset_index(name="count")
-        fig5 = px.line(daily, x="date_only", y="count", markers=True,
-                       color_discrete_sequence=["#4f8ef7"], template="plotly_dark")
-        fig5.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#0f1117",
-                           xaxis_title="Date", yaxis_title="Events", height=300)
+    # ── Event mix over time (INSIGHT) ───────────────────────────────────────
+    st.markdown('<div class="section-header">Event Mix by Hour</div>', unsafe_allow_html=True)
+
+    if "ev" in df_filtered.columns and "hour" in df_filtered.columns:
+        event_hour = (
+            df_filtered.groupby(["hour", "ev"]).size()
+            .reset_index(name="count")
+        )
+
+        fig5 = px.bar(
+            event_hour,
+            x="hour",
+            y="count",
+            color="ev",
+            barmode="stack",
+            template="plotly_dark"
+        )
+
+        fig5.update_layout(
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#0f1117",
+            height=320,
+            xaxis_title="Hour (IST)",
+            yaxis_title="Events"
+        )
+
         st.plotly_chart(fig5, use_container_width=True)
 
 
