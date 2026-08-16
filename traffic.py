@@ -3,7 +3,7 @@ import time
 from typing import List
 import random
 import pandas as pd
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.parse import urlparse, urlunparse
 import sys
 
@@ -40,22 +40,27 @@ def build_clean_utm_url(url, utm_params):
         urlencode(utm_params),  # ONLY your UTMs
         ""                       # fragment
     ))
+    
+BLOCKED_URL = "https://www.jawwy.sa/content/jawwy/en/help.html"
+
+
+def is_blocked_url(url):
+    if not url:
+        return False
+
+    parsed = urlparse(url)
+
+    blocked = urlparse(BLOCKED_URL)
+
+    return (
+        parsed.scheme == blocked.scheme
+        and parsed.netloc == blocked.netloc
+        and parsed.path.rstrip("/") == blocked.path.rstrip("/")
+    )
 
 def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str, utm_params : dict):
+
     with sync_playwright() as p:
-        # browser = p.chromium.launch(
-        #     headless=False,
-        #     # proxy={
-        #     #     "server": f"http://{BRD_HOST}:{BRD_PORT}",
-        #     #     "username": BRD_USERNAME,
-        #     #     "password": BRD_PASSWORD,
-        #     # },
-        #     proxy={
-        #         "server" : "http://res.proxy-seller.com:10000",
-        #         "username" : "0d7f72c7caef09e0",
-        #         "password": "x8ms7eE3"
-        #     }
-        # )
         
         browser = p.chromium.launch(
             headless=False,
@@ -91,9 +96,10 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
 
             target_url = f"{site_url}?{urlencode(utm_params)}"
             
-            print(f"Visiting {target_url} with client_id {raw_client_id} -> cookie {ga_cookie_value}")
-
+            # print(f"Visiting {target_url} with client_id {raw_client_id} -> cookie {ga_cookie_value}")
+            
             page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+            
 
 
             time.sleep(5)
@@ -113,10 +119,11 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                         random.choice(tabs[:4]).click(force=True)
                         time.sleep(random.uniform(2, 3))
                 except Exception as e:
-                    print(f"Tab click error: {e}")
+                    # print(f"Tab click error: {e}")
+                    pass
                 
                 if random.random() < 0.3:
-                    print("🧍 User idle...")
+                    # print("🧍 User idle...")
                     time.sleep(random.uniform(8, 15))
 
                 for _ in range(random.randint(4, 7)):
@@ -136,6 +143,17 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                             try:
                                 text = (el.inner_text() or "").strip()
                                 href = el.get_attribute("href") or ""
+
+                                if not href:
+                                    continue
+
+                                target_url = urljoin(page.url, href)
+
+                                if is_blocked_url(target_url):
+                                    print(f"🚫 Skipping blocked URL: {target_url}")
+                                    # page.goto("https://www.jawwy.sa/content/jawwy/en/shop.html")
+                                    continue
+                                
                                 key = f"{text}|{href}|{i}"
                                 if key not in clicked:
                                     usable.append((key, el))
@@ -167,13 +185,25 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
             try:
                 original_url = clientdata[raw_client_id][2]
 
-                if not original_url:
-                    print("❌ Missing original URL, skipping")
-                else:
+                # if not original_url:
+                #     # print("❌ Missing original URL, skipping")
+                #     pass
+                # else:
+                #     final_url = build_clean_utm_url(original_url, utm_params)
+                #     # print(f"🔁 Navigating to final page: {final_url}")
+                
+                if original_url:
                     final_url = build_clean_utm_url(original_url, utm_params)
-                    print(f"🔁 Navigating to final page: {final_url}")
 
-                page.goto(final_url, wait_until="domcontentloaded")
+                # page.goto(final_url, wait_until="domcontentloaded")
+                if is_blocked_url(final_url):
+                    print(f"🚫 Blocked final navigation: {final_url}")
+                    page.goto("https://www.jawwy.sa/content/jawwy/en/shop.html")
+                else:
+                    page.goto(
+                        final_url,
+                        wait_until="domcontentloaded"
+                    )
                 time.sleep(random.uniform(8, 15))
 
                 # Light interaction
@@ -182,7 +212,8 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                     time.sleep(random.uniform(1.5, 3))
 
             except Exception as e:
-                print("Final navigation error:", e)
+                # print("Final navigation error:", e)
+                pass
             
 
             context.close()
@@ -197,6 +228,24 @@ if __name__ == '__main__':
     ua = sys.argv[2]
     gs = sys.argv[3]
     url = sys.argv[4]
+    site_url = (
+        sys.argv[5]
+        if len(sys.argv) > 5
+        else "https://www.jawwy.sa/content/jawwy/en/shop.html"
+    )
+    flag = sys.argv[6]
+    
+    def_utm_params={
+        "utm_source": "adintop",
+        "utm_medium": "CPM",
+        "utm_campaign": "Jawwy_AO_April_2026"
+    }
+    
+    travel_utm_params={
+        "utm_source": "adintop",
+        "utm_medium": "CPM",
+        "utm_campaign": "Jawwy_Travel_April_2026"
+    }
     
 
     clientdata = {ga : [ua, gs, url]}
@@ -204,18 +253,14 @@ if __name__ == '__main__':
     client_ids = list(clientdata.keys())
     
     
-    print(f"Client IDs : {client_ids}")
+    # print(f"Client IDs : {client_ids}")
 
     generate_utm_traffic(
         client_ids,
         clientdata,
-        site_url="https://www.jawwy.sa/content/jawwy/en/shop.html",
-        utm_params={
-            "utm_source": "adintop",
-            "utm_medium": "CPM",
-            "utm_campaign": "Jawwy_AO_April_2026"
-        }
+        site_url=site_url,
+        utm_params=def_utm_params if flag == "False" else travel_utm_params
     )
     
-    print("SESSIONS CREATED FOR :", ga)
+    # print("SESSIONS CREATED FOR :", ga)
 
