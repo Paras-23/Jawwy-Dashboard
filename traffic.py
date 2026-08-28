@@ -7,6 +7,10 @@ from urllib.parse import urlencode, urljoin
 from urllib.parse import urlparse, urlunparse
 import sys
 
+DOMAIN_FILE = "Saudi Arabia Website Longlist — 250 Domains.txt"
+
+TOTAL_SESSION_TIME = 90
+PRE_JAWWY_TIME = 20
 
 def normalize_ga_cookie(client_id: str) -> str:
     if pd.isna(client_id):
@@ -58,6 +62,118 @@ def is_blocked_url(url):
         and parsed.path.rstrip("/") == blocked.path.rstrip("/")
     )
 
+import re
+import random
+
+
+def load_random_domains_by_category(count=3):
+    try:
+        with open(
+            DOMAIN_FILE,
+            "r",
+            encoding="utf-8",
+            errors="ignore"
+        ) as file:
+            lines = file.readlines()
+
+        categories = {}
+        current_category = None
+
+        for line in lines:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            # Category heading
+            if line[0].isdigit() and ". " in line:
+                parts = line.split(". ", 1)
+
+                if len(parts) == 2:
+                    possible_domain = parts[1].strip()
+
+                    # If it looks like a domain, store it
+                    if "." in possible_domain and " " not in possible_domain:
+                        if current_category:
+                            categories.setdefault(
+                                current_category,
+                                []
+                            ).append(possible_domain)
+                    else:
+                        current_category = possible_domain
+
+        available_categories = [
+            category
+            for category, domains in categories.items()
+            if domains
+        ]
+
+        selected_categories = random.sample(
+            available_categories,
+            min(count, len(available_categories))
+        )
+
+        selected_domains = []
+
+        for category in selected_categories:
+            selected_domains.append(
+                random.choice(categories[category])
+            )
+
+        return selected_domains
+
+    except Exception as e:
+        print(f"⚠️ Could not select random domains: {e}")
+        return []
+
+
+def visit_random_website(page, domain, duration):
+    try:
+        if not domain.startswith("http"):
+            url = f"https://{domain}"
+        else:
+            url = domain
+
+        print(f"🌐 Visiting: {url}")
+
+        page.goto(
+            url,
+            wait_until="domcontentloaded",
+            timeout=20000
+        )
+
+        start_time = time.time()
+
+        while time.time() - start_time < duration:
+
+            try:
+                # Random scroll
+                page.mouse.wheel(
+                    0,
+                    random.randint(300, 900)
+                )
+
+                time.sleep(
+                    random.uniform(2, 4)
+                )
+
+                # Occasionally scroll upward
+                if random.random() < 0.3:
+                    page.mouse.wheel(
+                        0,
+                        -random.randint(200, 600)
+                    )
+
+                    time.sleep(
+                        random.uniform(1, 2)
+                    )
+
+            except Exception:
+                break
+
+    except Exception as e:
+        print(f"⚠️ Failed to visit {domain}: {e}")
+
 def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str, utm_params : dict):
 
     with sync_playwright() as p:
@@ -75,9 +191,14 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
             context = browser.new_context(
                 user_agent=clientdata[raw_client_id][0],
                 viewport={"width": 1920, "height": 1080},
-                ignore_https_errors=True
+                ignore_https_errors=True,
+                proxy={
+                    "server": "http://gw.dataimpulse.com:823",
+                    "username": "72934cf642a202981e39",
+                    "password": "23639d288a763301"
+                },
             )
-
+            
             context.add_cookies([
                 {
                     "name": "_ga",
@@ -90,22 +211,149 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                     "url": "https://www.jawwy.sa/",
                 }
             ])
+            
+            GA_HOSTS = {
+                "www.google-analytics.com",
+                "analytics.google.com",
+            }
+
+            # BLOCKED_HOSTS = {
+            #     "monitor.tapper.ai",
+            #     "protect.tapper.ai",
+            #     "fingerprint.tapper.ai",
+
+            #     "www.clarity.ms",
+            #     "scripts.clarity.ms",
+            #     "f.clarity.ms",
+            #     "n.clarity.ms",
+            #     "y.clarity.ms",
+            #     "t.clarity.ms",
+            #     "c.clarity.ms",
+            #     "l.clarity.ms",
+            #     "u.clarity.ms",
+            #     "m.clarity.ms",
+            #     "v.clarity.ms",
+            #     "e.clarity.ms",
+
+            #     "connect.facebook.net",
+            #     "www.facebook.com",
+
+            #     "analytics.tiktok.com",
+            #     "analytics-ipv6.tiktokw.us",
+
+            #     "tr.snapchat.com",
+            #     "tr6.snapchat.com",
+
+            #     "cdn.adjust.com",
+            #     "app.adjust.com",
+            #     "app.adjust.world",
+
+            #     "t.contentsquare.net",
+            #     "l.contentsquare.net",
+            #     "k-eu1.az.contentsquare.net",
+            #     "srm.aa.contentsquare.net",
+            #     "c.az.contentsquare.net",
+
+            #     "dynamic.criteo.com",
+            #     "sslwidget.criteo.com",
+            #     "ag.gbc.criteo.com",
+            #     "gem.gbc.criteo.com",
+            #     "gum.criteo.com",
+            #     "mug.criteo.com",
+            #     "dis.criteo.com",
+            # }
+
+            browsing_random_sites = True
+            ALLOWED_HOSTS = {
+                "www.jawwy.sa",
+                "api.jawwy.sa",
+                "www.google-analytics.com",
+                "analytics.google.com",
+            }
+            
+            
+            def should_block(url):
+                hostname = urlparse(url).hostname
+
+                if not hostname:
+                    return False
+
+                hostname = hostname.lower()
+
+                # While visiting random external websites,
+                # allow their resources normally
+                if browsing_random_sites:
+                    return False
+
+                # Always allow Google Analytics
+                if hostname in GA_HOSTS:
+                    return False
+
+                # Allow Jawwy and required API hosts
+                if hostname in ALLOWED_HOSTS:
+                    return False
+
+                # Block everything else during Jawwy session
+                return True
+
+            context.route("**/*", lambda route: (
+                route.abort() if should_block(route.request.url)
+                else route.continue_()
+            ))
 
             page = context.new_page()
             
+            # Pick 3 domains from 3 different categories
+            # Pick 3 domains from 3 different categories
+            try:
+                random_domains = load_random_domains_by_category(3)
+
+                print("🌐 Selected websites:")
+
+                for domain in random_domains:
+                    print(f"   → {domain}")
+
+            except Exception as e:
+                print(f"⚠️ Could not select random domains: {e}")
+                random_domains = []
+
+            if random_domains:
+
+                time_per_site = 10
+
+                for domain in random_domains:
+
+                    visit_random_website(
+                        page,
+                        domain,
+                        duration=time_per_site
+                    )
+                    
+            browsing_random_sites = False
+            print("🔒 External browsing finished. Jawwy routing rules enabled.")
 
             target_url = f"{site_url}?{urlencode(utm_params)}"
             
             # print(f"Visiting {target_url} with client_id {raw_client_id} -> cookie {ga_cookie_value}")
             
-            page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
+            try:
+                page.goto(
+                    target_url,
+                    wait_until="domcontentloaded",
+                    timeout=45000
+                )
+
+            except Exception as e:
+                print(f"⚠️ Could not open Jawwy page: {e}")
+                context.close()
+                continue
             
 
 
             time.sleep(5)
             
             session_start = time.time()
-            MIN_SESSION_TIME = random.uniform(100, 120)
+            MIN_SESSION_TIME = random.uniform(45, 50)
 
 
             clicked = set()
@@ -124,12 +372,12 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                 
                 if random.random() < 0.3:
                     # print("🧍 User idle...")
-                    time.sleep(random.uniform(8, 15))
+                    time.sleep(random.uniform(5, 7))
 
                 for _ in range(random.randint(4, 7)):
                     scroll_amount = random.randint(200, 600)
                     page.mouse.wheel(0, scroll_amount)
-                    time.sleep(random.uniform(2, 5))
+                    # time.sleep(random.uniform(2, 5))
 
                     try:
                         current_url = page.url
@@ -180,36 +428,43 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                         # print(f"Navigating....")
                         pass
                     
-                time.sleep(random.uniform(4, 8))
+                time.sleep(random.uniform(4, 5))
                 
             try:
                 original_url = clientdata[raw_client_id][2]
 
-                # if not original_url:
-                #     # print("❌ Missing original URL, skipping")
-                #     pass
-                # else:
-                #     final_url = build_clean_utm_url(original_url, utm_params)
-                #     # print(f"🔁 Navigating to final page: {final_url}")
-                
-                if original_url:
-                    final_url = build_clean_utm_url(original_url, utm_params)
+                if not original_url:
+                    print("⚠️ No final URL available, skipping final navigation")
 
-                # page.goto(final_url, wait_until="domcontentloaded")
-                if is_blocked_url(final_url):
-                    print(f"🚫 Blocked final navigation: {final_url}")
-                    page.goto("https://www.jawwy.sa/content/jawwy/en/shop.html")
                 else:
-                    page.goto(
-                        final_url,
-                        wait_until="domcontentloaded"
+                    final_url = build_clean_utm_url(
+                        original_url,
+                        utm_params
                     )
-                time.sleep(random.uniform(8, 15))
 
-                # Light interaction
-                for _ in range(random.randint(2, 4)):
-                    page.evaluate(f"window.scrollBy(0, {random.randint(200, 800)})")
-                    time.sleep(random.uniform(1.5, 3))
+                    if is_blocked_url(final_url):
+                        print(f"🚫 Blocked final navigation: {final_url}")
+
+                        page.goto(
+                            "https://www.jawwy.sa/content/jawwy/en/shop.html",
+                            wait_until="domcontentloaded",
+                            timeout=30000
+                        )
+
+                    else:
+                        page.goto(
+                            final_url,
+                            wait_until="domcontentloaded",
+                            timeout=30000
+                        )
+
+                    time.sleep(random.uniform(6, 8))
+
+                    for _ in range(random.randint(2, 4)):
+                        page.evaluate(
+                            f"window.scrollBy(0, {random.randint(200, 800)})"
+                        )
+                        time.sleep(random.uniform(1.5, 3))
 
             except Exception as e:
                 # print("Final navigation error:", e)
