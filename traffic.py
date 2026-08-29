@@ -276,7 +276,7 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
             # Pick 3 domains from 3 different categories
             # Pick 3 domains from 3 different categories
             try:
-                random_domains = load_random_domains_by_category(3)
+                random_domains = load_random_domains_by_category(1)
 
                 print("🌐 Selected websites:")
 
