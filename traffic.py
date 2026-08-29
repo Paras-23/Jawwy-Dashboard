@@ -212,63 +212,26 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
                 }
             ])
             
-            GA_HOSTS = {
-                "www.google-analytics.com",
-                "analytics.google.com",
-            }
-
-            # BLOCKED_HOSTS = {
-            #     "monitor.tapper.ai",
-            #     "protect.tapper.ai",
-            #     "fingerprint.tapper.ai",
-
-            #     "www.clarity.ms",
-            #     "scripts.clarity.ms",
-            #     "f.clarity.ms",
-            #     "n.clarity.ms",
-            #     "y.clarity.ms",
-            #     "t.clarity.ms",
-            #     "c.clarity.ms",
-            #     "l.clarity.ms",
-            #     "u.clarity.ms",
-            #     "m.clarity.ms",
-            #     "v.clarity.ms",
-            #     "e.clarity.ms",
-
-            #     "connect.facebook.net",
-            #     "www.facebook.com",
-
-            #     "analytics.tiktok.com",
-            #     "analytics-ipv6.tiktokw.us",
-
-            #     "tr.snapchat.com",
-            #     "tr6.snapchat.com",
-
-            #     "cdn.adjust.com",
-            #     "app.adjust.com",
-            #     "app.adjust.world",
-
-            #     "t.contentsquare.net",
-            #     "l.contentsquare.net",
-            #     "k-eu1.az.contentsquare.net",
-            #     "srm.aa.contentsquare.net",
-            #     "c.az.contentsquare.net",
-
-            #     "dynamic.criteo.com",
-            #     "sslwidget.criteo.com",
-            #     "ag.gbc.criteo.com",
-            #     "gem.gbc.criteo.com",
-            #     "gum.criteo.com",
-            #     "mug.criteo.com",
-            #     "dis.criteo.com",
-            # }
-
-            browsing_random_sites = True
             ALLOWED_HOSTS = {
                 "www.jawwy.sa",
                 "api.jawwy.sa",
+            }
+
+            GA_HOSTS = {
                 "www.google-analytics.com",
                 "analytics.google.com",
+                "region1.analytics.google.com",
+                "www.googletagmanager.com",
+            }
+
+            GOOGLE_SUPPORT_HOSTS = {
+                "www.gstatic.com",
+            }
+
+            TAPPER_HOSTS = {
+                "monitor.tapper.ai",
+                "protect.tapper.ai",
+                "fingerprint.tapper.ai",
             }
             
             
@@ -280,22 +243,29 @@ def generate_utm_traffic(client_ids: List[str], clientdata : dict, site_url: str
 
                 hostname = hostname.lower()
 
-                # While visiting random external websites,
-                # allow their resources normally
+                # Random website phase: allow everything
                 if browsing_random_sites:
                     return False
 
-                # Always allow Google Analytics
+                # Explicitly block Tapper
+                if hostname in TAPPER_HOSTS:
+                    return True
+
+                # Allow GA + GTM
                 if hostname in GA_HOSTS:
                     return False
 
-                # Allow Jawwy and required API hosts
+                # Allow Google support resources
+                if hostname in GOOGLE_SUPPORT_HOSTS:
+                    return False
+
+                # Allow Jawwy
                 if hostname in ALLOWED_HOSTS:
                     return False
 
-                # Block everything else during Jawwy session
+                # Block everything else
                 return True
-
+            
             context.route("**/*", lambda route: (
                 route.abort() if should_block(route.request.url)
                 else route.continue_()
